@@ -18,8 +18,8 @@ dependencies {
     paperDevBundle("1.20-R0.1-SNAPSHOT")
     implementation("de.maxhenkel.voicechat:voicechat-api:2.4.11")
     implementation("dev.arbjerg:lavaplayer:2.0.1")
-    implementation("dev.jorel:commandapi-bukkit-shade:9.0.3")
-    implementation("de.tr7zw:item-nbt-api:2.11.3")
+    implementation("dev.jorel:commandapi-bukkit-shade:9.2.0")
+    implementation("de.tr7zw:item-nbt-api:2.12.0")
 }
 
 tasks {
