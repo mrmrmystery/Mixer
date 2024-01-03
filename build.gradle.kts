@@ -1,49 +1,51 @@
 plugins {
     id("java")
-    id("io.papermc.paperweight.userdev") version "1.5.5"
     id("com.github.johnrengelman.shadow") version "8.1.1"
+    id("com.modrinth.minotaur") version "2.+"
 }
 
 group = "net.somewhatcity"
-version = "1.0-SNAPSHOT"
+version = "1.0.2"
 
 repositories {
     mavenCentral()
+    maven("https://repo.papermc.io/repository/maven-public/")
     maven ("https://maven.maxhenkel.de/repository/public")
     maven ("https://repo.codemc.io/repository/maven-public/")
     maven ("https://jitpack.io")
 }
 
 dependencies {
-    paperDevBundle("1.20-R0.1-SNAPSHOT")
+    compileOnly("io.papermc.paper:paper-api:1.19-R0.1-SNAPSHOT")
     implementation("de.maxhenkel.voicechat:voicechat-api:2.4.11")
     implementation("dev.arbjerg:lavaplayer:2.0.1")
-    implementation("dev.jorel:commandapi-bukkit-shade:9.2.0")
-    implementation("de.tr7zw:item-nbt-api:2.12.0")
+    implementation("dev.jorel:commandapi-bukkit-shade:9.3.0")
+    implementation("de.tr7zw:item-nbt-api:2.12.2")
 }
 
 tasks {
-
     shadowJar {
         relocate("dev.jorel.commandapi", "net.somewhatcity.mixer.commandapi")
         relocate("de.tr7zw.changeme.nbtapi", "net.somewhatcity.mixer.item-nbt-api")
         dependencies {
             exclude(dependency("de.maxhenkel.voicechat:voicechat-api:2.4.11"))
         }
-
-        doLast() {
-            copy {
-                from(shadowJar)
-                into("./testserver/plugins")
-            }
-        }
-    }
-
-    assemble {
-        dependsOn(reobfJar)
     }
 }
 
 tasks.withType<JavaCompile> {
     options.encoding = "UTF-8"
+}
+
+modrinth {
+    token.set(System.getenv("MODRINTH_TOKEN"))
+    projectId.set("ThaMLsde")
+    versionNumber.set(version.toString())
+    versionType.set("release")
+    uploadFile.set(tasks.shadowJar)
+    gameVersions.addAll(listOf("1.19", "1.19.1", "1.19.2", "1.19.3", "1.19.4", "1.20", "1.20.1", "1.20.2", "1.20.3", "1.20.4"))
+    loaders.addAll(listOf("paper", "purpur"))
+    dependencies {
+        required.project("9eGKb6K1")
+    }
 }
