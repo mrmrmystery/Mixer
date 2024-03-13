@@ -18,10 +18,16 @@ import de.tr7zw.changeme.nbtapi.NBTBlock;
 import de.tr7zw.changeme.nbtapi.NBTItem;
 import de.tr7zw.changeme.nbtapi.NBTTileEntity;
 import net.kyori.adventure.text.minimessage.MiniMessage;
+import net.somewhatcity.mixer.Mixer;
 import net.somewhatcity.mixer.audio.MixerAudioPlayer;
+import net.somewhatcity.mixer.audio.RedstonePoint;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
+import org.bukkit.block.BlockFace;
+import org.bukkit.block.Jukebox;
+import org.bukkit.block.Sign;
+import org.bukkit.block.sign.Side;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
@@ -43,6 +49,7 @@ public class PlayerInteractListener implements Listener {
     public void onInteract(PlayerInteractEvent e) {
         if(e.getClickedBlock() == null) return;
         if(!e.getClickedBlock().getType().equals(Material.JUKEBOX)) return;
+        Jukebox jukeboxState = (Jukebox) e.getClickedBlock().getState();
 
 
         if(e.getAction().equals(Action.LEFT_CLICK_BLOCK)) {
@@ -50,6 +57,11 @@ public class PlayerInteractListener implements Listener {
             if(playerHashMap.containsKey(block)) {
                 MixerAudioPlayer oldPlayer = playerHashMap.get(block);
                 oldPlayer.stop();
+                Bukkit.getScheduler().runTask(Mixer.getPlugin(), () -> {
+                    jukeboxState.stopPlaying();
+                    jukeboxState.update(true);
+                });
+
             }
         } else if (e.getAction().equals(Action.RIGHT_CLICK_BLOCK)) {
             Location block = e.getClickedBlock().getLocation();
@@ -69,6 +81,10 @@ public class PlayerInteractListener implements Listener {
 
                 e.getPlayer().sendActionBar(MiniMessage.miniMessage().deserialize("<red>playback stopped"));
                 oldPlayer.stop();
+                Bukkit.getScheduler().runTask(Mixer.getPlugin(), () -> {
+                    jukeboxState.stopPlaying();
+                    jukeboxState.update(true);
+                });
                 playerHashMap.remove(block);
             }
 
@@ -103,9 +119,47 @@ public class PlayerInteractListener implements Listener {
                 });
             }
 
-            MixerAudioPlayer audioPlayer = new MixerAudioPlayer(locations);
+
+            String redstones = jukebox.getPersistentDataContainer().getString("mixer_redstones");
+
+            List<RedstonePoint> redstonePoints = new ArrayList<>();
+
+            if(redstones != null && !redstones.isEmpty()) {
+                JsonArray rePoints = (JsonArray) JsonParser.parseString(redstones);
+                rePoints.forEach(point -> {
+                    JsonObject obj = point.getAsJsonObject();
+                    Location location = new Location(
+                            Bukkit.getWorld(obj.get("world").getAsString()),
+                            obj.get("x").getAsDouble(),
+                            obj.get("y").getAsDouble(),
+                            obj.get("z").getAsDouble()
+                    );
+                    int mag = obj.get("mag").getAsInt();
+                    int trigger = obj.get("trigger").getAsInt();
+                    int delay = obj.get("delay").getAsInt();
+
+                    redstonePoints.add(new RedstonePoint(location, mag, trigger, delay));
+                });
+            }
+
+            String objectiveName = null;
+            if(e.getClickedBlock().getRelative(BlockFace.UP).getState() instanceof Sign sign) {
+                String line0 = MiniMessage.miniMessage().serialize(sign.getSide(Side.FRONT).line(0));
+                String line1 = MiniMessage.miniMessage().serialize(sign.getSide(Side.FRONT).line(1));
+
+                if(line0.equals("[scoreboard]") && !line1.isEmpty()) {
+                    objectiveName = line1;
+                }
+            }
+
+
+            MixerAudioPlayer audioPlayer = new MixerAudioPlayer(locations, redstonePoints, objectiveName);
             audioPlayer.loadAudio(url, true, info -> {
                 e.getPlayer().sendActionBar(MiniMessage.miniMessage().deserialize("<green>Now playing <white>" + info.title + "<green> by <white>" + info.author + "<green>!"));
+                Bukkit.getScheduler().runTask(Mixer.getPlugin(), () -> {
+                    jukeboxState.startPlaying();
+                    jukeboxState.update(true);
+                });
             });
             playerHashMap.put(block, audioPlayer);
 
@@ -120,6 +174,7 @@ public class PlayerInteractListener implements Listener {
             if(playerHashMap.containsKey(loc)) {
                 MixerAudioPlayer map = playerHashMap.get(loc);
                 map.stop();
+
                 playerHashMap.remove(loc);
             }
         }

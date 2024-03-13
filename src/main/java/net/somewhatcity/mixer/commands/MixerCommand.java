@@ -18,6 +18,7 @@ import de.tr7zw.changeme.nbtapi.NBTItem;
 import de.tr7zw.changeme.nbtapi.NBTTileEntity;
 import dev.jorel.commandapi.CommandAPICommand;
 import dev.jorel.commandapi.arguments.GreedyStringArgument;
+import dev.jorel.commandapi.arguments.IntegerArgument;
 import dev.jorel.commandapi.arguments.LocationArgument;
 import dev.jorel.commandapi.arguments.LocationType;
 import net.kyori.adventure.text.minimessage.MiniMessage;
@@ -56,7 +57,9 @@ public class MixerCommand extends CommandAPICommand {
                     nbtItem.setString("mixer_data", url);
                     nbtItem.applyNBT(item);
 
-                    MixerAudioPlayer ghostPlayer = new MixerAudioPlayer(Collections.singletonList(player.getLocation()));
+
+
+                    MixerAudioPlayer ghostPlayer = new MixerAudioPlayer(Collections.singletonList(player.getLocation()), Collections.emptyList(), null);
                     ghostPlayer.loadAudio(url, false, info -> {
                         Bukkit.getScheduler().runTask(Mixer.getPlugin(), () -> {
                             ItemMeta meta = item.getItemMeta();
@@ -105,6 +108,52 @@ public class MixerCommand extends CommandAPICommand {
 
                     player.sendMessage(MM.deserialize("<green>Location linked to jukebox"));
                 })
+        );
+        withSubcommand(new CommandAPICommand("redstone")
+                .withPermission("mixer.command.redstone")
+                .withArguments(new LocationArgument("jukebox", LocationType.BLOCK_POSITION))
+                .withArguments(new IntegerArgument("magnitude", 0, 2048))
+                .withArguments(new IntegerArgument("trigger", 0))
+                .withArguments(new IntegerArgument("delay", 0))
+                .executesPlayer(((player, args) -> {
+                    Location jukeboxLoc = (Location) args.get(0);
+                    Block block = jukeboxLoc.getBlock();
+
+                    if(!block.getType().equals(Material.JUKEBOX)) {
+                        player.sendMessage(MM.deserialize("<red>No jukebox at location"));
+                        return;
+                    }
+
+                    JsonArray redstones;
+                    NBTTileEntity jukebox = new NBTTileEntity(block.getState());
+                    String data = jukebox.getPersistentDataContainer().getString("mixer_redstones");
+                    if(data == null || data.isEmpty()) {
+                        redstones = new JsonArray();
+                    } else {
+                        redstones = (JsonArray) JsonParser.parseString(data);
+                    }
+
+                    if(player.getTargetBlockExact(10) == null) {
+                        player.sendMessage(MM.deserialize("<red>Not looking at a block"));
+                        return;
+                    }
+
+                    Location loc = player.getTargetBlockExact(10).getLocation();
+
+                    JsonObject locData = new JsonObject();
+                    locData.addProperty("x", loc.getX());
+                    locData.addProperty("y", loc.getY());
+                    locData.addProperty("z", loc.getZ());
+                    locData.addProperty("world", loc.getWorld().getName());
+                    locData.addProperty("mag", (int) args.get(1));
+                    locData.addProperty("trigger", (int) args.get(2));
+                    locData.addProperty("delay", (int) args.get(3));
+
+                    redstones.add(locData);
+                    jukebox.getPersistentDataContainer().setString("mixer_redstones", redstones.toString());
+
+                    player.sendMessage(MM.deserialize("<green>Redstone-Location linked to jukebox"));
+                }))
         );
         register();
     }

@@ -1,0 +1,55 @@
+/*
+ * Copyright (c) 2024 mrmrmystery
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice (including the next paragraph) shall be included in all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+ */
+
+package net.somewhatcity.mixer.audio;
+
+import com.sedmelluq.discord.lavaplayer.filter.AudioFilter;
+import com.sedmelluq.discord.lavaplayer.filter.PcmFilterFactory;
+import com.sedmelluq.discord.lavaplayer.filter.UniversalPcmAudioFilter;
+import com.sedmelluq.discord.lavaplayer.filter.equalizer.Equalizer;
+import com.sedmelluq.discord.lavaplayer.format.AudioDataFormat;
+import com.sedmelluq.discord.lavaplayer.track.AudioTrack;
+import org.apache.commons.math3.complex.Complex;
+import org.apache.commons.math3.transform.DftNormalization;
+import org.apache.commons.math3.transform.FastFourierTransformer;
+import org.apache.commons.math3.transform.TransformType;
+
+import java.util.Collections;
+import java.util.List;
+
+public class MixerFactory implements PcmFilterFactory {
+
+    private MixerAudioFilter audioFilter;
+
+    public MixerFactory() {
+
+    }
+    @Override
+    public List<AudioFilter> buildChain(AudioTrack audioTrack, AudioDataFormat audioDataFormat, UniversalPcmAudioFilter universalPcmAudioFilter) {
+        audioFilter = new MixerAudioFilter(universalPcmAudioFilter);
+        return Collections.singletonList(audioFilter);
+    }
+
+    public double[] getMagnitudes() {
+        if(audioFilter == null) return new double[0];
+
+        double[] samples = audioFilter.getSamples();
+
+        FastFourierTransformer transformer = new FastFourierTransformer(DftNormalization.STANDARD);
+        Complex[] fftResult = transformer.transform(samples, TransformType.FORWARD);
+
+        double[] magnitudes = new double[fftResult.length];
+        for(int i = 0; i < magnitudes.length; i++) {
+            magnitudes[i] = fftResult[i].abs();
+        }
+
+        return magnitudes;
+    }
+}

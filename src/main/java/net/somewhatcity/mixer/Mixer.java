@@ -44,6 +44,9 @@ public class Mixer extends JavaPlugin {
             getLogger().info("VoiceChat not found");
         }
 
+
+
+
         PluginManager pm = getServer().getPluginManager();
         pm.registerEvents(new PlayerInteractListener(), this);
 

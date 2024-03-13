@@ -9,18 +9,26 @@ version = "1.0.2"
 
 repositories {
     mavenCentral()
+    mavenLocal()
     maven("https://repo.papermc.io/repository/maven-public/")
     maven ("https://maven.maxhenkel.de/repository/public")
     maven ("https://repo.codemc.io/repository/maven-public/")
     maven ("https://jitpack.io")
+    maven {
+        name = "arbjergDevSnapshots"
+        url = uri("https://maven.lavalink.dev/snapshots")
+    }
 }
 
 dependencies {
-    compileOnly("io.papermc.paper:paper-api:1.19-R0.1-SNAPSHOT")
+    compileOnly("io.papermc.paper:paper-api:1.19.4-R0.1-SNAPSHOT")
     implementation("de.maxhenkel.voicechat:voicechat-api:2.4.11")
-    implementation("dev.arbjerg:lavaplayer:2.0.1")
+    //implementation("dev.arbjerg:lavaplayer:2.0.1")
+    implementation("dev.arbjerg:lavaplayer:727959e9f621fc457b3a5adafcfffb55fdeaa538-SNAPSHOT")
     implementation("dev.jorel:commandapi-bukkit-shade:9.3.0")
     implementation("de.tr7zw:item-nbt-api:2.12.2")
+    implementation("org.apache.commons:commons-math3:3.6.1")
+
 }
 
 tasks {

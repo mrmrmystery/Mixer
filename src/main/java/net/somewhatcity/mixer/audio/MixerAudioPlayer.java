@@ -31,13 +31,41 @@ import com.sedmelluq.discord.lavaplayer.track.playback.AudioFrame;
 import de.maxhenkel.voicechat.api.VoicechatApi;
 import de.maxhenkel.voicechat.api.VoicechatServerApi;
 import de.maxhenkel.voicechat.api.audiochannel.LocationalAudioChannel;
+import net.kyori.adventure.text.Component;
+import net.somewhatcity.mixer.Mixer;
 import net.somewhatcity.mixer.MixerVoicechatPlugin;
 import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.http.cookie.ClientCookie;
 import org.apache.http.impl.cookie.BasicClientCookie;
+import org.bukkit.Bukkit;
 import org.bukkit.Location;
+import org.bukkit.Material;
+import org.bukkit.block.Block;
+import org.bukkit.block.BlockFace;
+import org.bukkit.block.Comparator;
+import org.bukkit.block.data.AnaloguePowerable;
+import org.bukkit.block.data.BlockData;
+import org.bukkit.block.data.Powerable;
+import org.bukkit.block.data.type.RedstoneWire;
+import org.bukkit.entity.BlockDisplay;
+import org.bukkit.entity.Display;
+import org.bukkit.entity.EntityType;
+import org.bukkit.material.Redstone;
+import org.bukkit.scoreboard.Criteria;
+import org.bukkit.scoreboard.Objective;
+import org.bukkit.scoreboard.Score;
+import org.bukkit.scoreboard.Scoreboard;
+import org.bukkit.util.Transformation;
+import org.joml.Vector3d;
 
+import javax.swing.*;
+import java.awt.*;
+import java.awt.image.BufferedImage;
 import java.util.*;
+import java.util.List;
+import java.util.Timer;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 
 public class MixerAudioPlayer {
 
@@ -49,16 +77,20 @@ public class MixerAudioPlayer {
     private AudioPlayer audioPlayer;
     private AudioTrack audioTrack;
     private Timer audioTimer;
-
     private EqualizerFactory equalizer;
+    private MixerFactory mixerFilter;
+    private BlockDisplay[] displays = new BlockDisplay[2048];
+    private Executor executor = Executors.newCachedThreadPool();
+    private int realCooldown = 0;
+    public static Graphics2D g2;
 
     static {
         AudioSourceManagers.registerRemoteSources(APM);
-        APM.setFrameBufferDuration(500);
+        APM.setFrameBufferDuration(0);
         APM.getConfiguration().setFilterHotSwapEnabled(true);
     }
 
-    public MixerAudioPlayer(List<Location> locs) {
+    public MixerAudioPlayer(List<Location> locs, List<RedstonePoint> redstones, String objectiveName) {
         List<LocationalAudioChannel> channels = new ArrayList<>();
 
         locs.forEach(loc -> {
@@ -72,10 +104,23 @@ public class MixerAudioPlayer {
             channel.setDistance(100);
             channels.add(channel);
         });
+        Objective objective = null;
+        if(objectiveName != null) {
+            Scoreboard scoreboard = Bukkit.getScoreboardManager().getMainScoreboard();
+            objective = scoreboard.getObjective(objectiveName);
+            if(objective == null) objective = scoreboard.registerNewObjective(objectiveName, Criteria.DUMMY, Component.text("mixer_" + objectiveName));
+        }
+
 
         equalizer = new EqualizerFactory();
+        mixerFilter = new MixerFactory();
+
         audioPlayer = APM.createPlayer();
+
+        audioPlayer.setFilterFactory(mixerFilter);
+
         audioTimer = new Timer();
+        Objective finalObjective = objective;
         audioTimer.scheduleAtFixedRate(new TimerTask() {
             @Override
             public void run() {
@@ -87,6 +132,47 @@ public class MixerAudioPlayer {
                             ch.send(data);
                         });
                     }
+
+                    double[] mags = smooth(mixerFilter.getMagnitudes(), 4);
+
+                    executor.execute(() -> {
+                        try {
+                            Thread.sleep(320);
+                            if(finalObjective != null) {
+                                for(int i = 0; i < mags.length; i++) {
+                                    Score score = finalObjective.getScore("#" + i);
+                                    score.setScore((int) (mags[i] / 10));
+                                }
+                            }
+                        } catch (InterruptedException e) {
+                            throw new RuntimeException(e);
+                        }
+                    });
+
+                    redstones.forEach(point -> {
+                        int delay = point.getDelay();
+
+                        int mag = point.getMagnitude();
+                        if(mag > 0 && mag < mags.length) {
+                            int newMag = (int) Math.round(mags[mag] / 10);
+                            if(newMag > point.getTrigger()) {
+                                new Timer().schedule(new TimerTask() {
+                                    @Override
+                                    public void run() {
+                                        Bukkit.getScheduler().runTask(Mixer.getPlugin(), () -> {
+                                            point.getLocation().getBlock().setType(Material.REDSTONE_BLOCK);
+                                        });
+                                    }
+                                }, delay); // 320 default
+                            } else {
+                                Bukkit.getScheduler().runTask(Mixer.getPlugin(), () -> {
+                                    point.getLocation().getBlock().setType(Material.AIR);
+                                });
+                            }
+                        }
+
+                    });
+
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
@@ -150,7 +236,38 @@ public class MixerAudioPlayer {
 
     public void stop() {
         audioPlayer.stopTrack();
+        audioTimer.cancel();
     }
+
+    public String createFromMag(double mag) {
+        int iMag = (int) Math.round(mag / 10);
+        return "|".repeat(Math.max(0, iMag));
+    }
+
+    public static double[] smooth(double[] data, int windowSize) {
+        if (data == null || data.length == 0 || windowSize <= 0) {
+            return data;
+        }
+
+        double[] smoothedData = new double[data.length];
+        int halfWindowSize = windowSize / 2;
+
+        for (int i = 0; i < data.length; i++) {
+            double sum = 0.0;
+            int count = 0;
+
+            for (int j = Math.max(0, i - halfWindowSize); j <= Math.min(data.length - 1, i + halfWindowSize); j++) {
+                sum += data[j];
+                count++;
+            }
+
+            smoothedData[i] = sum / count;
+        }
+
+        return smoothedData;
+    }
+
+
 
     public void bassBoost(float percentage) {
         float multiplier = percentage / 100.0f;
