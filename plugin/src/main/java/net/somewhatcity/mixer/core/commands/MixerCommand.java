@@ -40,6 +40,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 
+import java.io.File;
 import java.util.Arrays;
 import java.util.Collections;
 
@@ -51,6 +52,7 @@ public class MixerCommand extends CommandAPICommand {
 
     static {
         AudioSourceManagers.registerRemoteSources(APM);
+        AudioSourceManagers.registerLocalSource(APM);
         APM.setFrameBufferDuration(100);
     }
 
@@ -68,10 +70,16 @@ public class MixerCommand extends CommandAPICommand {
 
                     String url = (String) args.get(0);
 
-
-
-
+                    if(url.startsWith("file:")) {
+                        String filename = url.substring(5);
+                        File file = new File(filename);
+                        if(file.exists() && file.isFile()) {
+                            url = file.getAbsolutePath();
+                        }
+                    }
+                    String finalUrl = url;
                     APM.loadItem(url, new AudioLoadResultHandler() {
+
                         @Override
                         public void trackLoaded(AudioTrack audioTrack) {
                             AudioTrackInfo info = audioTrack.getInfo();
@@ -83,7 +91,7 @@ public class MixerCommand extends CommandAPICommand {
                                 ));
                                 item.setItemMeta(meta);
                                 NBTItem nbtItem = new NBTItem(item);
-                                nbtItem.setString("mixer_data", url);
+                                nbtItem.setString("mixer_data", finalUrl);
                                 nbtItem.applyNBT(item);
                             });
                         }
@@ -99,7 +107,7 @@ public class MixerCommand extends CommandAPICommand {
                                 ));
                                 item.setItemMeta(meta);
                                 NBTItem nbtItem = new NBTItem(item);
-                                nbtItem.setString("mixer_data", url);
+                                nbtItem.setString("mixer_data", finalUrl);
                                 nbtItem.applyNBT(item);
                             });
                         }

@@ -40,10 +40,6 @@ public class PlayerInteractListener implements Listener {
             Location location = e.getClickedBlock().getLocation();
             if(MixerPlugin.getPlugin().playerHashMap().containsKey(location)) {
                 IMixerAudioPlayer audioPlayer = MixerPlugin.getPlugin().playerHashMap().get(location);
-                Bukkit.getScheduler().runTask(MixerPlugin.getPlugin(), () -> {
-                    jukeboxState.stopPlaying();
-                    jukeboxState.update(true);
-                });
                 audioPlayer.stop();
             }
         } else if (e.getAction().equals(Action.RIGHT_CLICK_BLOCK)) {
@@ -67,10 +63,6 @@ public class PlayerInteractListener implements Listener {
 
                 e.getPlayer().sendActionBar(MiniMessage.miniMessage().deserialize("<red>playback stopped"));
                 audioPlayer.stop();
-                Bukkit.getScheduler().runTask(MixerPlugin.getPlugin(), () -> {
-                    jukeboxState.stopPlaying();
-                    jukeboxState.update(true);
-                });
             }
 
             if(e.getItem() == null) return;
@@ -81,83 +73,6 @@ public class PlayerInteractListener implements Listener {
 
             IMixerAudioPlayer audioPlayer = new IMixerAudioPlayer(location);
             audioPlayer.load(url);
-
-            /*
-
-            NBTTileEntity jukebox = new NBTTileEntity(block.getBlock().getState());
-            String data = jukebox.getPersistentDataContainer().getString("mixer_links");
-
-            List<Location> locations = new ArrayList<>();
-
-            if(data == null || data.isEmpty()) {
-                locations.add(block);
-            } else {
-                JsonArray links = (JsonArray) JsonParser.parseString(data);
-
-                links.forEach(link -> {
-                    JsonObject obj = link.getAsJsonObject();
-                    Location location = new Location(
-                            Bukkit.getWorld(obj.get("world").getAsString()),
-                            obj.get("x").getAsDouble(),
-                            obj.get("y").getAsDouble(),
-                            obj.get("z").getAsDouble()
-                    );
-                    locations.add(location);
-                });
-            }
-
-
-            String redstones = jukebox.getPersistentDataContainer().getString("mixer_redstones");
-
-            List<RedstonePoint> redstonePoints = new ArrayList<>();
-
-            if(redstones != null && !redstones.isEmpty()) {
-                JsonArray rePoints = (JsonArray) JsonParser.parseString(redstones);
-                rePoints.forEach(point -> {
-                    JsonObject obj = point.getAsJsonObject();
-                    Location location = new Location(
-                            Bukkit.getWorld(obj.get("world").getAsString()),
-                            obj.get("x").getAsDouble(),
-                            obj.get("y").getAsDouble(),
-                            obj.get("z").getAsDouble()
-                    );
-                    int mag = obj.get("mag").getAsInt();
-                    int trigger = obj.get("trigger").getAsInt();
-                    int delay = obj.get("delay").getAsInt();
-
-                    redstonePoints.add(new RedstonePoint(location, mag, trigger, delay));
-                });
-            }
-
-            String objectiveName = null;
-            if(e.getClickedBlock().getRelative(BlockFace.UP).getState() instanceof Sign sign) {
-                String line0 = MiniMessage.miniMessage().serialize(sign.getSide(Side.FRONT).line(0));
-                String line1 = MiniMessage.miniMessage().serialize(sign.getSide(Side.FRONT).line(1));
-
-                if(line0.equals("[scoreboard]") && !line1.isEmpty()) {
-                    objectiveName = line1;
-                }
-            }
-
-            MAudioPlayer player = new MAudioPlayer(locations, Utils.loadNbtData(block, "mixer_dsp"));
-            player.load(url);
-
-            /*
-            MixerAudioPlayer audioPlayer = new MixerAudioPlayer(locations, redstonePoints, objectiveName);
-            audioPlayer.loadAudio(url, true, info -> {
-                e.getPlayer().sendActionBar(MiniMessage.miniMessage().deserialize("<green>Now playing <white>" + info.title + "<green> by <white>" + info.author + "<green>!"));
-                Bukkit.getScheduler().runTask(Mixer.getPlugin(), () -> {
-                    jukeboxState.startPlaying();
-                    jukeboxState.update(true);
-                });
-            });
-
-
-            playerHashMap.put(block, player);
-
-             */
-
-
         }
     }
 

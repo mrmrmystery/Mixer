@@ -54,6 +54,7 @@ import org.bukkit.Particle;
 import org.bukkit.block.Block;
 
 import javax.sound.sampled.AudioFormat;
+import java.io.File;
 import java.io.IOException;
 import java.util.*;
 
@@ -82,6 +83,7 @@ public class IMixerAudioPlayer implements MixerAudioPlayer {
 
     static {
         AudioSourceManagers.registerRemoteSources(APM);
+        AudioSourceManagers.registerLocalSource(APM);
         APM.setFrameBufferDuration(100);
     }
     public IMixerAudioPlayer(Location location) {
