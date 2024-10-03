@@ -12,15 +12,11 @@ package net.somewhatcity.mixer.core.audio;
 
 import be.tarsos.dsp.AudioDispatcher;
 import be.tarsos.dsp.GainProcessor;
-import be.tarsos.dsp.beatroot.BeatRootOnsetEventHandler;
 import be.tarsos.dsp.effects.FlangerEffect;
 import be.tarsos.dsp.filters.HighPass;
 import be.tarsos.dsp.filters.LowPassFS;
 import be.tarsos.dsp.io.TarsosDSPAudioFormat;
 import be.tarsos.dsp.io.jvm.JVMAudioInputStream;
-import be.tarsos.dsp.onsets.ComplexOnsetDetector;
-import be.tarsos.dsp.onsets.OnsetHandler;
-import be.tarsos.dsp.util.BiQuadFilter;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
@@ -29,7 +25,16 @@ import com.sedmelluq.discord.lavaplayer.player.AudioPlayer;
 import com.sedmelluq.discord.lavaplayer.player.AudioPlayerManager;
 import com.sedmelluq.discord.lavaplayer.player.DefaultAudioPlayerManager;
 import com.sedmelluq.discord.lavaplayer.player.event.AudioEventAdapter;
-import com.sedmelluq.discord.lavaplayer.source.AudioSourceManagers;
+import com.sedmelluq.discord.lavaplayer.source.bandcamp.BandcampAudioSourceManager;
+import com.sedmelluq.discord.lavaplayer.source.beam.BeamAudioSourceManager;
+import com.sedmelluq.discord.lavaplayer.source.getyarn.GetyarnAudioSourceManager;
+import com.sedmelluq.discord.lavaplayer.source.http.HttpAudioSourceManager;
+import com.sedmelluq.discord.lavaplayer.source.local.LocalAudioSourceManager;
+import com.sedmelluq.discord.lavaplayer.source.nico.NicoAudioSourceManager;
+import com.sedmelluq.discord.lavaplayer.source.soundcloud.SoundCloudAudioSourceManager;
+import com.sedmelluq.discord.lavaplayer.source.twitch.TwitchStreamAudioSourceManager;
+import com.sedmelluq.discord.lavaplayer.source.vimeo.VimeoAudioSourceManager;
+import com.sedmelluq.discord.lavaplayer.source.yamusic.YandexMusicAudioSourceManager;
 import com.sedmelluq.discord.lavaplayer.tools.FriendlyException;
 import com.sedmelluq.discord.lavaplayer.track.AudioPlaylist;
 import com.sedmelluq.discord.lavaplayer.track.AudioTrack;
@@ -40,28 +45,35 @@ import de.maxhenkel.opus4j.OpusEncoder;
 import de.maxhenkel.opus4j.UnknownPlatformException;
 import de.maxhenkel.voicechat.api.VoicechatServerApi;
 import de.maxhenkel.voicechat.api.audiochannel.LocationalAudioChannel;
-import de.tr7zw.changeme.nbtapi.NBTTileEntity;
+import dev.lavalink.youtube.YoutubeAudioSourceManager;
+import dev.lavalink.youtube.clients.AndroidLiteWithThumbnail;
+import dev.lavalink.youtube.clients.MusicWithThumbnail;
+import dev.lavalink.youtube.clients.WebWithThumbnail;
+import dev.lavalink.youtube.clients.skeleton.Client;
+import net.kyori.adventure.text.minimessage.MiniMessage;
 import net.somewhatcity.mixer.api.MixerAudioPlayer;
 import net.somewhatcity.mixer.api.MixerDsp;
 import net.somewhatcity.mixer.api.MixerSpeaker;
 import net.somewhatcity.mixer.core.MixerPlugin;
 import net.somewhatcity.mixer.core.MixerVoicechatPlugin;
 import net.somewhatcity.mixer.core.util.Utils;
-import org.bukkit.Bukkit;
-import org.bukkit.Location;
-import org.bukkit.Material;
-import org.bukkit.Particle;
+import org.bukkit.*;
 import org.bukkit.block.Block;
+import org.bukkit.block.Jukebox;
+import org.bukkit.persistence.PersistentDataType;
 
 import javax.sound.sampled.AudioFormat;
-import java.io.File;
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class IMixerAudioPlayer implements MixerAudioPlayer {
     private static final AudioFormat AUDIO_FORMAT = new AudioFormat(48000, 16, 1, true, true);
     private static final VoicechatServerApi API = (VoicechatServerApi) MixerVoicechatPlugin.api;
     private static final AudioPlayerManager APM = new DefaultAudioPlayerManager();
+    private static final ExecutorService EXECUTOR_SERVICE = Executors.newSingleThreadExecutor();
+
     private Location location;
     private Block block;
     private Set<MixerSpeaker> speakers;
@@ -82,9 +94,25 @@ public class IMixerAudioPlayer implements MixerAudioPlayer {
     private JsonObject dspSettings;
 
     static {
-        AudioSourceManagers.registerRemoteSources(APM);
-        AudioSourceManagers.registerLocalSource(APM);
+        YoutubeAudioSourceManager youtube = new YoutubeAudioSourceManager(true, new Client[] {
+                new MusicWithThumbnail(),
+                new WebWithThumbnail(),
+                new AndroidLiteWithThumbnail()
+        });
+        APM.registerSourceManager(youtube);
+        APM.registerSourceManager(new YandexMusicAudioSourceManager(true));
+        APM.registerSourceManager(SoundCloudAudioSourceManager.createDefault());
+        APM.registerSourceManager(new BandcampAudioSourceManager());
+        APM.registerSourceManager(new VimeoAudioSourceManager());
+        APM.registerSourceManager(new TwitchStreamAudioSourceManager());
+        APM.registerSourceManager(new BeamAudioSourceManager());
+        APM.registerSourceManager(new GetyarnAudioSourceManager());
+        APM.registerSourceManager(new NicoAudioSourceManager());
+        APM.registerSourceManager(new HttpAudioSourceManager());
+        APM.registerSourceManager(new LocalAudioSourceManager());
+
         APM.setFrameBufferDuration(100);
+
     }
     public IMixerAudioPlayer(Location location) {
         if(!location.getBlock().getType().equals(Material.JUKEBOX)) throw new IllegalArgumentException("no jukebox at location");
@@ -100,8 +128,10 @@ public class IMixerAudioPlayer implements MixerAudioPlayer {
         this.block = location.getBlock();
         this.speakers = new HashSet<>();
 
-        NBTTileEntity jukebox = new NBTTileEntity(block.getState());
-        String speakerData = jukebox.getPersistentDataContainer().getString("mixer_links");
+        Jukebox jukebox = (Jukebox) block.getState();
+
+        NamespacedKey mixerLinks = new NamespacedKey(MixerPlugin.getPlugin(), "mixer_links");
+        String speakerData = jukebox.getPersistentDataContainer().get(mixerLinks, PersistentDataType.STRING);
 
         if(speakerData == null || speakerData.isEmpty()) {
             speakers.add(new IMixerSpeaker(location));
@@ -222,8 +252,7 @@ public class IMixerAudioPlayer implements MixerAudioPlayer {
     public void stop() {
         running = false;
         if(dispatcher != null) dispatcher.stop();
-
-        audioTimer.cancel();
+        if(audioTimer != null) audioTimer.cancel();
         encoder.close();
         decoder.close();
 
@@ -244,34 +273,53 @@ public class IMixerAudioPlayer implements MixerAudioPlayer {
         }
     }
 
-    private void loadSingle(String url) {
-        APM.loadItem(url, new AudioLoadResultHandler() {
-            @Override
-            public void trackLoaded(AudioTrack audioTrack) {
-                playlist.add(audioTrack);
-                if(!playbackStarted) {
-                    loadDsp();
-                    start();
-                    playbackStarted = true;
+    private void loadSingle(String audioUrl) {
+        if(audioUrl == null || audioUrl.isEmpty()) return;
+        final String[] url = {audioUrl};
+        EXECUTOR_SERVICE.submit(() -> {
+            if(url[0].startsWith("cobalt:")) {
+                url[0] = url[0].replace("cobalt:", "");
+                url[0] = Utils.requestCobaltMediaUrl(url[0]);
+                if(url[0] == null || url[0].isEmpty()) {
+                    location.getNearbyPlayers(10).forEach(p -> {
+                        p.sendMessage(MiniMessage.miniMessage().deserialize("<red>Error playing cobalt media"));
+                    });
+                    return;
                 }
-                if(!loadingQueue.isEmpty() && running) load(loadingQueue.poll());
+            } else if (url[0].startsWith("https://www.youtube.com/") || url[0].startsWith("https://music.youtube.com/")) {
+                url[0] = Utils.requestCobaltMediaUrl(url[0]);
             }
 
-            @Override
-            public void playlistLoaded(AudioPlaylist audioPlaylist) {
-                playlist.add(audioPlaylist.getSelectedTrack());
-            }
+            APM.loadItem(url[0], new AudioLoadResultHandler() {
+                @Override
+                public void trackLoaded(AudioTrack audioTrack) {
+                    playlist.add(audioTrack);
+                    if(!playbackStarted) {
+                        loadDsp();
+                        start();
+                        playbackStarted = true;
+                    }
+                    if(!loadingQueue.isEmpty() && running) load(loadingQueue.poll());
+                }
 
-            @Override
-            public void noMatches() {
-            }
+                @Override
+                public void playlistLoaded(AudioPlaylist audioPlaylist) {
+                    playlist.add(audioPlaylist.getSelectedTrack());
+                }
 
-            @Override
-            public void loadFailed(FriendlyException e) {
-                e.printStackTrace();
-            }
+                @Override
+                public void noMatches() {
+                }
+
+                @Override
+                public void loadFailed(FriendlyException e) {
+                    e.printStackTrace();
+                }
+            });
         });
+
     }
+    
     public void loadDsp() {
         new Timer().schedule(new TimerTask() {
             @Override

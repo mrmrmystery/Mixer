@@ -16,43 +16,70 @@ import com.google.gson.JsonParser;
 import com.sedmelluq.discord.lavaplayer.player.AudioLoadResultHandler;
 import com.sedmelluq.discord.lavaplayer.player.AudioPlayerManager;
 import com.sedmelluq.discord.lavaplayer.player.DefaultAudioPlayerManager;
-import com.sedmelluq.discord.lavaplayer.source.AudioSourceManagers;
+import com.sedmelluq.discord.lavaplayer.source.bandcamp.BandcampAudioSourceManager;
+import com.sedmelluq.discord.lavaplayer.source.beam.BeamAudioSourceManager;
+import com.sedmelluq.discord.lavaplayer.source.getyarn.GetyarnAudioSourceManager;
+import com.sedmelluq.discord.lavaplayer.source.http.HttpAudioSourceManager;
+import com.sedmelluq.discord.lavaplayer.source.local.LocalAudioSourceManager;
+import com.sedmelluq.discord.lavaplayer.source.nico.NicoAudioSourceManager;
+import com.sedmelluq.discord.lavaplayer.source.soundcloud.SoundCloudAudioSourceManager;
+import com.sedmelluq.discord.lavaplayer.source.twitch.TwitchStreamAudioSourceManager;
+import com.sedmelluq.discord.lavaplayer.source.vimeo.VimeoAudioSourceManager;
+import com.sedmelluq.discord.lavaplayer.source.yamusic.YandexMusicAudioSourceManager;
 import com.sedmelluq.discord.lavaplayer.tools.FriendlyException;
 import com.sedmelluq.discord.lavaplayer.track.AudioPlaylist;
 import com.sedmelluq.discord.lavaplayer.track.AudioTrack;
 import com.sedmelluq.discord.lavaplayer.track.AudioTrackInfo;
-import de.tr7zw.changeme.nbtapi.NBTItem;
-import de.tr7zw.changeme.nbtapi.NBTTileEntity;
 import dev.jorel.commandapi.CommandAPICommand;
 import dev.jorel.commandapi.arguments.GreedyStringArgument;
 import dev.jorel.commandapi.arguments.IntegerArgument;
 import dev.jorel.commandapi.arguments.LocationArgument;
 import dev.jorel.commandapi.arguments.LocationType;
+import dev.lavalink.youtube.YoutubeAudioSourceManager;
+import dev.lavalink.youtube.clients.*;
+import dev.lavalink.youtube.clients.skeleton.Client;
+import net.kyori.adventure.text.format.TextDecoration;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import net.somewhatcity.mixer.core.commands.dsp.DspCommand;
 import net.somewhatcity.mixer.core.MixerPlugin;
+import net.somewhatcity.mixer.core.util.MessageUtil;
 import net.somewhatcity.mixer.core.util.Utils;
-import org.bukkit.Bukkit;
-import org.bukkit.Location;
-import org.bukkit.Material;
+import org.bukkit.*;
 import org.bukkit.block.Block;
-import org.bukkit.entity.Player;
+import org.bukkit.block.Jukebox;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.inventory.meta.components.JukeboxPlayableComponent;
+import org.bukkit.persistence.PersistentDataType;
 
 import java.io.File;
-import java.util.Arrays;
-import java.util.Collections;
+import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class MixerCommand extends CommandAPICommand {
 
     private static final MiniMessage MM = MiniMessage.miniMessage();
-
+    private static final ExecutorService EXECUTOR_SERVICE = Executors.newSingleThreadExecutor();
     private static final AudioPlayerManager APM = new DefaultAudioPlayerManager();
 
     static {
-        AudioSourceManagers.registerRemoteSources(APM);
-        AudioSourceManagers.registerLocalSource(APM);
+        YoutubeAudioSourceManager youtube = new YoutubeAudioSourceManager(true, new Client[] {
+                new MusicWithThumbnail(),
+                new WebWithThumbnail(),
+                new AndroidLiteWithThumbnail()
+        });
+        APM.registerSourceManager(youtube);
+        APM.registerSourceManager(new YandexMusicAudioSourceManager(true));
+        APM.registerSourceManager(SoundCloudAudioSourceManager.createDefault());
+        APM.registerSourceManager(new BandcampAudioSourceManager());
+        APM.registerSourceManager(new VimeoAudioSourceManager());
+        APM.registerSourceManager(new TwitchStreamAudioSourceManager());
+        APM.registerSourceManager(new BeamAudioSourceManager());
+        APM.registerSourceManager(new GetyarnAudioSourceManager());
+        APM.registerSourceManager(new NicoAudioSourceManager());
+        APM.registerSourceManager(new HttpAudioSourceManager());
+        APM.registerSourceManager(new LocalAudioSourceManager());
+
         APM.setFrameBufferDuration(100);
     }
 
@@ -64,64 +91,115 @@ public class MixerCommand extends CommandAPICommand {
                 .executesPlayer((player, args) -> {
                     ItemStack item = player.getInventory().getItemInMainHand();
                     if (!Utils.isDisc(item)) {
-                        player.sendMessage("§cYou must be holding a music disc!");
+                        MessageUtil.sendErrMsg(player, "You must be holding a music disc!");
                         return;
                     }
 
-                    String url = (String) args.get(0);
+                    MessageUtil.sendMsg(player, "Loading track. Please wait...");
 
-                    if(url.startsWith("file:")) {
-                        String filename = url.substring(5);
-                        File file = new File(filename);
-                        if(file.exists() && file.isFile()) {
-                            url = file.getAbsolutePath();
-                        }
-                    }
-                    String finalUrl = url;
-                    APM.loadItem(url, new AudioLoadResultHandler() {
 
-                        @Override
-                        public void trackLoaded(AudioTrack audioTrack) {
-                            AudioTrackInfo info = audioTrack.getInfo();
-                            Bukkit.getScheduler().runTask(MixerPlugin.getPlugin(), () -> {
-                                ItemMeta meta = item.getItemMeta();
-                                meta.displayName(MM.deserialize("<reset>%s".formatted(info.title)));
-                                meta.lore(Arrays.asList(
-                                        MM.deserialize("<reset>%s".formatted(info.author))
-                                ));
-                                item.setItemMeta(meta);
-                                NBTItem nbtItem = new NBTItem(item);
-                                nbtItem.setString("mixer_data", finalUrl);
-                                nbtItem.applyNBT(item);
-                            });
-                        }
 
-                        @Override
-                        public void playlistLoaded(AudioPlaylist audioPlaylist) {
-                            AudioTrackInfo info = audioPlaylist.getSelectedTrack().getInfo();
-                            Bukkit.getScheduler().runTask(MixerPlugin.getPlugin(), () -> {
-                                ItemMeta meta = item.getItemMeta();
-                                meta.displayName(MM.deserialize("<reset>%s".formatted(info.title)));
-                                meta.lore(Arrays.asList(
-                                        MM.deserialize("<reset>%s".formatted(info.author))
-                                ));
-                                item.setItemMeta(meta);
-                                NBTItem nbtItem = new NBTItem(item);
-                                nbtItem.setString("mixer_data", finalUrl);
-                                nbtItem.applyNBT(item);
-                            });
-                        }
+                    EXECUTOR_SERVICE.submit(() -> {
+                        String url = (String) args.get(0);
+                        String oldUrl;
 
-                        @Override
-                        public void noMatches() {
-                            player.sendMessage(MM.deserialize("<red>No matches"));
+                        if(url.startsWith("file:")) {
+                            String filename = url.substring(5);
+                            File file = new File(filename);
+                            if(file.exists() && file.isFile()) {
+                                url = file.getAbsolutePath();
+                            }
                         }
+                        if(url.startsWith("cobalt:")) {
+                            String uri = url.substring(7);
+                            oldUrl = url;
+                            url = Utils.requestCobaltMediaUrl(uri);
+                            if(url == null) {
+                                player.sendMessage("§cError while loading cobalt media");
+                                return;
+                            }
+                        }
+                        else if (url.startsWith("https://www.youtube.com/") || url.startsWith("https://music.youtube.com/")) {
+                            oldUrl = url;
+                            url = Utils.requestCobaltMediaUrl(url);
+                            if(url == null) {
+                                player.sendMessage("§cError while loading cobalt media");
+                                return;
+                            }
+                        }
+                        else {
+                            oldUrl = "";
+                        }
+                        String finalUrl = url;
+                        APM.loadItem(url, new AudioLoadResultHandler() {
 
-                        @Override
-                        public void loadFailed(FriendlyException e) {
-                            player.sendMessage(MM.deserialize("<red>%s".formatted(e.getMessage())));
-                        }
+                            @Override
+                            public void trackLoaded(AudioTrack audioTrack) {
+                                AudioTrackInfo info = audioTrack.getInfo();
+                                Bukkit.getScheduler().runTask(MixerPlugin.getPlugin(), () -> {
+                                    String urlToSet;
+                                    if(!oldUrl.isEmpty()) {
+                                        urlToSet = oldUrl;
+                                    } else {
+                                        urlToSet = finalUrl;
+                                    }
+
+                                    item.editMeta((meta) -> {
+                                        meta.displayName(MM.deserialize("<reset>%s".formatted(info.title)).decoration(TextDecoration.ITALIC, false));
+                                        meta.lore(List.of(
+                                                MM.deserialize("<reset><gray>%s".formatted(info.author)).decoration(TextDecoration.ITALIC, false)
+                                        ));
+
+                                        NamespacedKey mixerData = new NamespacedKey(MixerPlugin.getPlugin(), "mixer_data");
+                                        meta.getPersistentDataContainer().set(mixerData, PersistentDataType.STRING, urlToSet);
+
+                                        JukeboxPlayableComponent playableComponent = meta.getJukeboxPlayable();
+                                        playableComponent.setSong(JukeboxSong.BLOCKS);
+                                        playableComponent.setShowInTooltip(false);
+
+                                        meta.setJukeboxPlayable(playableComponent);
+                                    });
+
+                                    MessageUtil.sendMsg(player, "Successfully loaded track %s", info.title);
+                                });
+                            }
+
+                            @Override
+                            public void playlistLoaded(AudioPlaylist audioPlaylist) {
+                                AudioTrackInfo info = audioPlaylist.getSelectedTrack().getInfo();
+                                Bukkit.getScheduler().runTask(MixerPlugin.getPlugin(), () -> {
+                                    item.editMeta(meta -> {
+                                        meta.displayName(MM.deserialize("<reset>%s".formatted(info.title)).decoration(TextDecoration.ITALIC, false));
+                                        meta.lore(List.of(
+                                                MM.deserialize("<reset><gray>%s".formatted(info.author)).decoration(TextDecoration.ITALIC, false)
+                                        ));
+
+                                        NamespacedKey mixerData = new NamespacedKey(MixerPlugin.getPlugin(), "mixer_data");
+                                        meta.getPersistentDataContainer().set(mixerData, PersistentDataType.STRING, finalUrl);
+
+                                        JukeboxPlayableComponent playableComponent = meta.getJukeboxPlayable();
+                                        playableComponent.setSong(JukeboxSong.BLOCKS);
+                                        playableComponent.setShowInTooltip(false);
+
+                                        meta.setJukeboxPlayable(playableComponent);
+                                    });
+
+                                    MessageUtil.sendMsg(player, "Successfully loaded track %s", info.title);
+                                });
+                            }
+
+                            @Override
+                            public void noMatches() {
+                                MessageUtil.sendErrMsg(player, "No matches found");
+                            }
+
+                            @Override
+                            public void loadFailed(FriendlyException e) {
+                                MessageUtil.sendErrMsg(player, e.getMessage());
+                            }
+                        });
                     });
+
                 })
         );
         withSubcommand(new CommandAPICommand("link")
@@ -132,14 +210,16 @@ public class MixerCommand extends CommandAPICommand {
                     Block block = jukeboxLoc.getBlock();
 
                     if(!block.getType().equals(Material.JUKEBOX)) {
-                        player.sendMessage(MM.deserialize("<red>No jukebox at location"));
+                        MessageUtil.sendErrMsg(player, "No jukebox found at location");
                         return;
                     }
 
                     JsonArray linked;
 
-                    NBTTileEntity jukebox = new NBTTileEntity(block.getState());
-                    String data = jukebox.getPersistentDataContainer().getString("mixer_links");
+                    Jukebox jukebox = (Jukebox) block.getState();
+                    NamespacedKey mixerLinks = new NamespacedKey(MixerPlugin.getPlugin(), "mixer_links");
+
+                    String data = jukebox.getPersistentDataContainer().get(mixerLinks, PersistentDataType.STRING);
                     if(data == null || data.isEmpty()) {
                         linked = new JsonArray();
                     } else {
@@ -155,9 +235,9 @@ public class MixerCommand extends CommandAPICommand {
                     locData.addProperty("world", loc.getWorld().getName());
 
                     linked.add(locData);
-                    jukebox.getPersistentDataContainer().setString("mixer_links", linked.toString());
+                    jukebox.getPersistentDataContainer().set(mixerLinks, PersistentDataType.STRING, linked.toString());
 
-                    player.sendMessage(MM.deserialize("<green>Location linked to jukebox"));
+                    MessageUtil.sendMsg(player, "Location linked to jukebox");
                 })
         );
         withSubcommand(new CommandAPICommand("redstone")
@@ -171,13 +251,14 @@ public class MixerCommand extends CommandAPICommand {
                     Block block = jukeboxLoc.getBlock();
 
                     if(!block.getType().equals(Material.JUKEBOX)) {
-                        player.sendMessage(MM.deserialize("<red>No jukebox at location"));
+                        MessageUtil.sendErrMsg(player, "No jukebox found at location");
                         return;
                     }
 
                     JsonArray redstones;
-                    NBTTileEntity jukebox = new NBTTileEntity(block.getState());
-                    String data = jukebox.getPersistentDataContainer().getString("mixer_redstones");
+                    Jukebox jukebox = (Jukebox) block.getState();
+                    NamespacedKey mixerRedstones = new NamespacedKey(MixerPlugin.getPlugin(), "mixer_redstones");
+                    String data = jukebox.getPersistentDataContainer().get(mixerRedstones, PersistentDataType.STRING);
                     if(data == null || data.isEmpty()) {
                         redstones = new JsonArray();
                     } else {
@@ -185,7 +266,7 @@ public class MixerCommand extends CommandAPICommand {
                     }
 
                     if(player.getTargetBlockExact(10) == null) {
-                        player.sendMessage(MM.deserialize("<red>Not looking at a block"));
+                        MessageUtil.sendErrMsg(player, "Not looking at a block");
                         return;
                     }
 
@@ -201,9 +282,9 @@ public class MixerCommand extends CommandAPICommand {
                     locData.addProperty("delay", (int) args.get(3));
 
                     redstones.add(locData);
-                    jukebox.getPersistentDataContainer().setString("mixer_redstones", redstones.toString());
+                    jukebox.getPersistentDataContainer().set(mixerRedstones, PersistentDataType.STRING, redstones.toString());
 
-                    player.sendMessage(MM.deserialize("<green>Redstone-Location linked to jukebox"));
+                    MessageUtil.sendMsg(player, "Redstone location linked to jukebox");
                 }))
         );
 

@@ -11,20 +11,18 @@
 package net.somewhatcity.mixer.core.listener;
 
 import com.destroystokyo.paper.event.block.BlockDestroyEvent;
-import de.tr7zw.changeme.nbtapi.NBTItem;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import net.somewhatcity.mixer.core.MixerPlugin;
 import net.somewhatcity.mixer.core.audio.IMixerAudioPlayer;
-import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
 import org.bukkit.block.Jukebox;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.player.PlayerInteractEvent;
-
-import java.util.HashMap;
+import org.bukkit.persistence.PersistentDataType;
 
 public class PlayerInteractListener implements Listener {
 
@@ -66,9 +64,10 @@ public class PlayerInteractListener implements Listener {
             }
 
             if(e.getItem() == null) return;
-            NBTItem nbtItem = new NBTItem(e.getItem());
-            if(!nbtItem.hasKey("mixer_data")) return;
-            String url = nbtItem.getString("mixer_data");
+
+            NamespacedKey mixerData = new NamespacedKey(MixerPlugin.getPlugin(), "mixer_data");
+            if(!e.getItem().getPersistentDataContainer().getKeys().contains(mixerData)) return;
+            String url = e.getItem().getPersistentDataContainer().get(mixerData, PersistentDataType.STRING);
             e.setCancelled(true);
 
             IMixerAudioPlayer audioPlayer = new IMixerAudioPlayer(location);

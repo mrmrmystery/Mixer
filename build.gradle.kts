@@ -2,7 +2,7 @@ plugins {
     id("java-library")
     id("maven-publish")
 
-    id("com.github.johnrengelman.shadow") version "8.1.1"
+    id("io.github.goooler.shadow") version "8.1.8"
 }
 
 tasks["jar"].enabled = false
@@ -12,7 +12,7 @@ allprojects {
     apply(plugin = "maven-publish")
 
     group = "net.somewhatcity"
-    version = "1.0.5"
+    version = "1.0.6"
 
     repositories {
         maven("https://repo.papermc.io/repository/maven-public/")

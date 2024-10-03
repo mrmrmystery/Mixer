@@ -12,12 +12,21 @@ package net.somewhatcity.mixer.core.util;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
-import de.tr7zw.changeme.nbtapi.NBTTileEntity;
+import net.somewhatcity.mixer.core.MixerPlugin;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.RequestBody;
+import okhttp3.Response;
 import org.bukkit.Location;
 import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
+import org.bukkit.block.Jukebox;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.persistence.PersistentDataType;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 public class Utils {
@@ -25,10 +34,15 @@ public class Utils {
         return item.getType().name().contains("MUSIC_DISC");
     }
 
+    public static OkHttpClient client = new OkHttpClient();
+
     public static JsonObject loadNbtData(Location location, String category) {
         if(!location.getBlock().getType().equals(Material.JUKEBOX)) return null;
-        NBTTileEntity jukebox = new NBTTileEntity(location.getBlock().getState());
-        String data = jukebox.getPersistentDataContainer().getString(category);
+
+        Jukebox jukebox = (Jukebox) location.getBlock().getState();
+        NamespacedKey key = new NamespacedKey(MixerPlugin.getPlugin(), category);
+
+        String data = jukebox.getPersistentDataContainer().get(key, PersistentDataType.STRING);
         if(data == null || data.isEmpty()) return new JsonObject();
 
         return (JsonObject) JsonParser.parseString(data);
@@ -36,9 +50,10 @@ public class Utils {
 
     public static void saveNbtData(Location location, String category, JsonObject data) {
         if(!location.getBlock().getType().equals(Material.JUKEBOX)) return;
-        NBTTileEntity jukebox = new NBTTileEntity(location.getBlock().getState());
+        Jukebox jukebox = (Jukebox) location.getBlock().getState();
+        NamespacedKey key = new NamespacedKey(MixerPlugin.getPlugin(), category);
 
-        jukebox.getPersistentDataContainer().setString(category, data.toString());
+        jukebox.getPersistentDataContainer().set(key, PersistentDataType.STRING, data.toString());
     }
 
     public static byte[] shortToByte(short[] input) {
@@ -66,5 +81,34 @@ public class Utils {
         }
 
         return output;
+    }
+
+    public static String requestCobaltMediaUrl(String url) {
+        JsonObject send = new JsonObject();
+        send.addProperty("url", url);
+        send.addProperty("isAudioOnly", true);
+
+        RequestBody body = RequestBody.create(send.toString().getBytes(StandardCharsets.UTF_8));
+
+        Request request = new Request.Builder()
+                .get()
+                .url("https://api.cobalt.tools/api/json")
+                .addHeader("accept", "application/json")
+                .addHeader("content-type", "application/json")
+                .post(body)
+                .build();
+
+        try(Response response = client.newCall(request).execute()) {
+            String res = response.body().string();
+            JsonObject json = (JsonObject) JsonParser.parseString(res);
+            if(json.has("url")) {
+                return json.get("url").getAsString();
+            } else {
+                return null;
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+            return null;
+        }
     }
 }

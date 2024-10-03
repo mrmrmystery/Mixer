@@ -10,13 +10,13 @@
 
 package net.somewhatcity.mixer.core.listener;
 
-import de.tr7zw.changeme.nbtapi.NBTItem;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import net.somewhatcity.mixer.api.MixerAudioPlayer;
 import net.somewhatcity.mixer.core.MixerPlugin;
 import net.somewhatcity.mixer.core.util.Utils;
 import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
 import org.bukkit.block.Barrel;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
@@ -27,6 +27,7 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockRedstoneEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.BookMeta;
+import org.bukkit.persistence.PersistentDataType;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -97,9 +98,9 @@ public class RedstoneListener implements Listener {
         for(ItemStack item : barrel.getInventory()) {
             if(item == null) continue;
             if(Utils.isDisc(item)) {
-                NBTItem nbtItem = new NBTItem(item);
-                if(!nbtItem.hasKey("mixer_data")) return;
-                String url = nbtItem.getString("mixer_data");
+                NamespacedKey mixerData = new NamespacedKey(MixerPlugin.getPlugin(), "mixer_data");
+                if(!item.getPersistentDataContainer().getKeys().contains(mixerData)) return;
+                String url = item.getPersistentDataContainer().get(mixerData, PersistentDataType.STRING);
                 loadList.add(url);
             }
             else if(item.getType().equals(Material.WRITABLE_BOOK)) {
@@ -113,8 +114,6 @@ public class RedstoneListener implements Listener {
                 loadList.add(getTtsUrl(sb.toString()));
             }
         }
-
-        System.out.println(Arrays.toString(loadList.toArray(String[]::new)));
 
         mixerPlayer.load(loadList.toArray(String[]::new));
         //MixerPlugin.playerInteractListener.playerHashMap.put(jukebox.getLocation(), audioPlayer);

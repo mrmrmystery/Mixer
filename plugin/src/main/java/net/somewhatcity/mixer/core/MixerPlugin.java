@@ -45,7 +45,6 @@ public class MixerPlugin extends JavaPlugin {
         plugin = this;
 
         new Metrics(this,19824);
-
         CommandAPI.onEnable();
 
         BukkitVoicechatService vcService = getServer().getServicesManager().load(BukkitVoicechatService.class);
