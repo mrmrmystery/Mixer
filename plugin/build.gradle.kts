@@ -36,7 +36,7 @@ dependencies {
     implementation("be.tarsos.dsp:core:2.5")
     implementation("be.tarsos.dsp:jvm:2.5")
     implementation("de.maxhenkel.opus4j:opus4j:2.0.2")
-    implementation("com.squareup.okhttp3:okhttp:4.11.0")
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
 
     api(project(":api"))
 }
