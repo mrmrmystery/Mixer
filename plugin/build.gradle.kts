@@ -25,7 +25,7 @@ repositories {
 }
 
 dependencies {
-    compileOnly("io.papermc.paper:paper-api:1.21-R0.1-SNAPSHOT")
+    compileOnly("io.papermc.paper:paper-api:1.21.3-R0.1-SNAPSHOT")
     implementation("de.maxhenkel.voicechat:voicechat-api:2.4.11")
     //implementation("dev.arbjerg:lavaplayer:2.2.1")
     implementation("dev.arbjerg:lavaplayer:f67aae9d591bb2343f16065f03ac5d7a1538b1d7-SNAPSHOT")
