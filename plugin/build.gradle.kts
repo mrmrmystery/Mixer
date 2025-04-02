@@ -31,7 +31,7 @@ dependencies {
     implementation("dev.arbjerg:lavaplayer:f67aae9d591bb2343f16065f03ac5d7a1538b1d7-SNAPSHOT")
     implementation("dev.lavalink.youtube:v2:1.11.1")
 
-    implementation("dev.jorel:commandapi-bukkit-shade:9.7.0")
+    implementation("dev.jorel:commandapi-bukkit-shade:10.0.0")
     implementation("org.apache.commons:commons-math3:3.6.1")
     implementation("be.tarsos.dsp:core:2.5")
     implementation("be.tarsos.dsp:jvm:2.5")
